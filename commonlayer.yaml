@@ -1,0 +1,84 @@
+# CommonLayer base image. Schema: schemas/commonlayer-v1.schema.json (this repository's copy).
+apiVersion: commonlayer.org/v1
+kind: Project
+metadata:
+  name: base
+  title: CommonLayer base image
+  summary: Minimal non-root base root filesystem from Alpine packages, with a reduced BusyBox, cl-probe and no package manager.
+  category: base-image
+  keywords: [base-image, alpine, musl, non-root]
+  license: Apache-2.0
+upstream:
+  name: Alpine Linux
+  homepage: https://alpinelinux.org
+  repository: https://github.com/alpinelinux/aports
+  # Components: musl (MIT), BusyBox (GPL-2.0-only), ca-certificates-bundle
+  # (MPL-2.0 AND MIT), tzdata (public domain), alpine-release/alpine-keys (MIT).
+  license: MIT AND GPL-2.0-only AND MPL-2.0
+maintainers:
+  # Placeholders until maintainers are appointed through the platform.
+  - username: commonlayer-base-primary
+    role: primary
+  - username: commonlayer-base-secondary
+    role: secondary
+versions:
+  - line: "3.24"
+    version: "3.24.4"
+    channel: stable
+    status: supported
+    notes: Alpine 3.24 release branch. Source is the official alpine image index, pinned by digest.
+    source:
+      url: oci://docker.io/library/alpine:3.24.4
+      sha256: "f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"
+images:
+  - name: base
+    variant: ""
+    dockerfile: image/Dockerfile
+    context: image
+    platforms: [linux/amd64, linux/arm64]
+    # The build stages start from this image; the final stage is FROM scratch.
+    base:
+      image: docker.io/library/alpine
+      tag: "3.24.4"
+      digest: "sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf"
+    user: { uid: 10001, gid: 10001 }
+    ports: []
+    volumes: []
+    readOnlyRootFilesystem: true
+    deviations:
+      - standard: base
+        reason: This is the base image itself; its final stage is FROM scratch plus a root assembled in a build stage that is pinned by digest.
+      - standard: source
+        reason: Assembled from Alpine binary packages installed by apk, which verifies them against Alpine's signing keys. BusyBox is rebuilt from Alpine's own source and patches, pinned by aports commit and checksums.
+      - standard: entrypoint
+        reason: A base image has no application to start; the default command is /bin/sh and derived images supply commonlayer-entrypoint.
+      - standard: healthcheck
+        reason: No long-running process to check. Derived images define HEALTHCHECK, typically with the cl-probe this image provides.
+      - standard: signals
+        reason: No long-running process; derived images handle signals.
+security:
+  contact: security@commonlayer.org
+  policy: docs/SECURITY.md
+  scanners: [trivy, grype]
+  gate: critical
+  # Installed in the image at /usr/share/commonlayer/vex/base.openvex.json so that
+  # scans of derived images apply it to the base packages they contain.
+  vex: image/vex/base.openvex.json
+  signing:
+    keyless:
+      issuer: https://token.actions.githubusercontent.com
+      identity: https://github.com/envaro/commonlayer-base/.github/workflows/*@refs/tags/v*
+build:
+  sbom: [spdx-json, cyclonedx-json]
+  provenance: slsa-v1
+  reproducible: best-effort
+release:
+  tagPattern: "v{version}-r{revision}"
+  channels: { stable: "3.24" }
+maintenance:
+  sla: commonlayer-default-v1
+  agreement: v1
+registry:
+  source: ghcr.io/envaro/commonlayer-base
+  destinations:
+    images: registry.commonlayer.org/base

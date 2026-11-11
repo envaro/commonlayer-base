@@ -1,0 +1,40 @@
+# Reusable: cosign keyless signatures (GitHub OIDC -> Fulcio certificate,
+# recorded in Rekor) for the released image indexes, verified against
+# security.signing.keyless in commonlayer.yaml. Needs the "release" artifact.
+name: sign
+
+on:
+  workflow_call:
+    inputs:
+      scope:
+        description: images, charts or all
+        type: string
+        default: images
+
+permissions: {}
+
+jobs:
+  sign:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: "{release,chart-release}"
+          merge-multiple: true
+          path: .build
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install pinned tools
+        run: scripts/install-tools.sh yq cosign
+      - name: Sign and verify
+        run: scripts/sign.sh sign "${{ inputs.scope }}"

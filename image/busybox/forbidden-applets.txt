@@ -1,0 +1,8 @@
+# Applet names that must not exist in the built BusyBox (checked after the build
+# and again by the base image tests).
+wget nc telnet telnetd ftpget ftpput tftp tftpd httpd nslookup whois sendmail ntpd rdate
+ping ping6 traceroute traceroute6 arping pscan udhcpc udhcpc6 ssl_client microcom
+ifconfig ip route netstat
+su login passwd adduser addgroup chpasswd chroot setpriv nsenter unshare
+mount umount mknod insmod modprobe init getty crond crontab
+vi less top lsof

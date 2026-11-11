@@ -1,0 +1,999 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://commonlayer.org/schemas/commonlayer-v1.schema.json",
+  "title": "CommonLayer project manifest (commonlayer.yaml), version 1",
+  "description": "Describes a CommonLayer project (kind: Project) or an entry of the migration catalog (kind: MigrationCandidate). Specified in https://github.com/envaro/commonlayer/blob/main/docs/plan/06-artifacts-and-registry.md section 8 and https://github.com/envaro/commonlayer/blob/main/docs/plan/10-images-charts-template.md section 7. Rules that need more than the document itself (at least a primary and a secondary maintainer, referenced files exist, platforms are from the supported set, a source checksum for every supported line) are checked by commonlayer-projects and by scripts/validate.sh, not by this schema.",
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "commonlayer.org/v1"
+    },
+    "kind": {
+      "enum": [
+        "Project",
+        "MigrationCandidate"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "Project"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/project"
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "MigrationCandidate"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "$ref": "#/$defs/migrationCandidate"
+      }
+    }
+  ],
+  "$defs": {
+    "slug": {
+      "description": "Lower-case identifier: letters, digits and hyphens, 3 to 40 characters, starting with a letter.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,38}[a-z0-9]$"
+    },
+    "username": {
+      "description": "CommonLayer username.",
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,38}$"
+    },
+    "spdxExpression": {
+      "description": "SPDX license expression, for example \"Apache-2.0\" or \"MPL-2.0 AND MIT\".",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9.+:()-]+( +(AND|OR|WITH) +[A-Za-z0-9.+:()-]+)*$"
+    },
+    "httpsUrl": {
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://[^\\s]+$",
+      "maxLength": 2048
+    },
+    "relativePath": {
+      "description": "Path relative to the repository root; no leading slash, no '..' segments.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9._-][A-Za-z0-9._/-]*$",
+      "not": {
+        "pattern": "(^|/)\\.\\.(/|$)"
+      }
+    },
+    "absolutePath": {
+      "type": "string",
+      "pattern": "^/[A-Za-z0-9._/-]*$",
+      "maxLength": 512
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "ociRepository": {
+      "description": "Registry host and repository path, without scheme or tag, for example ghcr.io/acme/nginx.",
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]+([._-][a-z0-9]+)*)+$",
+      "maxLength": 255
+    },
+    "markdown": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 20000
+    },
+    "sbomComponent": {
+      "description": "A source-built component declared for the SBOM. Either fromUpstream (version, download location, checksum and license come from the versions[] entry the image is built from and from upstream) or an explicit version and license. '{version}' in purl and cpes is replaced by the component's version.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "supplier",
+        "purl"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "fromUpstream"
+          ],
+          "properties": {
+            "fromUpstream": {
+              "const": true
+            }
+          },
+          "not": {
+            "anyOf": [
+              {
+                "required": [
+                  "version"
+                ]
+              },
+              {
+                "required": [
+                  "license"
+                ]
+              },
+              {
+                "required": [
+                  "downloadLocation"
+                ]
+              },
+              {
+                "required": [
+                  "sha256"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "required": [
+            "version",
+            "license"
+          ],
+          "not": {
+            "required": [
+              "fromUpstream"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+-]{0,99}$"
+        },
+        "fromUpstream": {
+          "type": "boolean"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._+~-]{0,63}$"
+        },
+        "supplier": {
+          "description": "Organization that supplies the component (SPDX 'Organization:', CycloneDX supplier.name).",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "license": {
+          "$ref": "#/$defs/spdxExpression"
+        },
+        "purl": {
+          "description": "Package URL; use the type upstream is distributed under, or pkg:generic. Must contain '@{version}'.",
+          "type": "string",
+          "pattern": "^pkg:[a-z][a-z0-9.+-]*/[^@\\s]+@\\{version\\}([?#][^\\s]*)?$",
+          "maxLength": 512
+        },
+        "cpes": {
+          "description": "CPE 2.3 names used by the NVD for this product, with '{version}' in the version field. Omit when no official CPE exists (the component then has no CVE feed and scanners cannot match it).",
+          "type": "array",
+          "maxItems": 5,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^cpe:2\\.3:[aho]:[^:\\s]+:[^:\\s]+:\\{version\\}(:[^:\\s]+){7}$"
+          }
+        },
+        "downloadLocation": {
+          "$ref": "#/$defs/httpsUrl"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    },
+    "chartStandardId": {
+      "description": "Rule id of the CommonLayer chart standard (https://github.com/envaro/commonlayer/blob/main/docs/contributing/chart-standard.md).",
+      "enum": [
+        "values",
+        "secure-defaults",
+        "image-digest",
+        "helper",
+        "schema"
+      ]
+    },
+    "standardId": {
+      "description": "Rule id of the CommonLayer container image standard (https://github.com/envaro/commonlayer/blob/main/docs/contributing/image-standard.md).",
+      "enum": [
+        "base",
+        "source",
+        "multi-stage",
+        "non-root",
+        "filesystem",
+        "read-only-rootfs",
+        "entrypoint",
+        "signals",
+        "healthcheck",
+        "env",
+        "labels",
+        "platforms",
+        "reproducibility",
+        "licenses",
+        "sbom-sign-provenance"
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "title",
+        "summary",
+        "category"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/slug"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 280
+        },
+        "category": {
+          "$ref": "#/$defs/slug"
+        },
+        "keywords": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+          }
+        },
+        "license": {
+          "description": "License of this repository's build configuration (not of the upstream application).",
+          "$ref": "#/$defs/spdxExpression"
+        }
+      }
+    },
+    "upstream": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "homepage",
+        "license"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "homepage": {
+          "$ref": "#/$defs/httpsUrl"
+        },
+        "repository": {
+          "$ref": "#/$defs/httpsUrl"
+        },
+        "license": {
+          "description": "SPDX expression of the upstream application.",
+          "$ref": "#/$defs/spdxExpression"
+        }
+      }
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "apiVersion",
+        "kind",
+        "metadata",
+        "upstream",
+        "maintainers",
+        "versions",
+        "security",
+        "registry"
+      ],
+      "additionalProperties": false,
+      "anyOf": [
+        {
+          "required": [
+            "images"
+          ],
+          "properties": {
+            "images": {
+              "minItems": 1
+            }
+          }
+        },
+        {
+          "required": [
+            "charts"
+          ],
+          "properties": {
+            "charts": {
+              "minItems": 1
+            }
+          }
+        }
+      ],
+      "properties": {
+        "apiVersion": true,
+        "kind": true,
+        "metadata": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/metadata"
+            }
+          ],
+          "required": [
+            "license"
+          ]
+        },
+        "upstream": {
+          "$ref": "#/$defs/upstream"
+        },
+        "maintainers": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "username",
+              "role"
+            ],
+            "properties": {
+              "username": {
+                "$ref": "#/$defs/username"
+              },
+              "role": {
+                "enum": [
+                  "primary",
+                  "secondary"
+                ]
+              }
+            }
+          }
+        },
+        "versions": {
+          "description": "Supported version lines.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "line",
+              "version",
+              "status",
+              "source"
+            ],
+            "properties": {
+              "line": {
+                "type": "string",
+                "pattern": "^[0-9A-Za-z][0-9A-Za-z.+-]{0,31}$"
+              },
+              "version": {
+                "type": "string",
+                "pattern": "^[0-9A-Za-z][0-9A-Za-z.+_-]{0,63}$"
+              },
+              "channel": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,31}$"
+              },
+              "status": {
+                "enum": [
+                  "supported",
+                  "deprecated",
+                  "eol"
+                ]
+              },
+              "eolDate": {
+                "description": "Addition to 06 section 8: end-of-life date of the line, maps to project_supported_versions.eol_date.",
+                "type": "string",
+                "format": "date"
+              },
+              "notes": {
+                "description": "Addition to 06 section 8: free text, maps to project_supported_versions.notes.",
+                "type": "string",
+                "maxLength": 2000
+              },
+              "source": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "description": "Upstream release artifact. https:// for tarballs; oci:// for an OCI image index used as the source (base image).",
+                    "type": "string",
+                    "format": "uri",
+                    "pattern": "^(https|oci)://[^\\s]+$",
+                    "maxLength": 2048
+                  },
+                  "sha256": {
+                    "description": "Verified SHA-256 of the artifact (hex). Required for every supported line; checked outside the schema.",
+                    "$ref": "#/$defs/sha256"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "images": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "dockerfile",
+              "context",
+              "platforms",
+              "base",
+              "user"
+            ],
+            "properties": {
+              "name": {
+                "$ref": "#/$defs/slug"
+              },
+              "variant": {
+                "type": "string",
+                "pattern": "^([a-z][a-z0-9-]{0,30}[a-z0-9])?$",
+                "default": ""
+              },
+              "dockerfile": {
+                "$ref": "#/$defs/relativePath"
+              },
+              "context": {
+                "$ref": "#/$defs/relativePath"
+              },
+              "platforms": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9]+/[a-z0-9]+(/[a-z0-9]+)?$"
+                }
+              },
+              "base": {
+                "description": "Image the final stage starts from. digest is required for a release; it may be absent before the base image's first release, and builds then use a locally built base pinned by its local digest.",
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "image",
+                  "tag"
+                ],
+                "properties": {
+                  "image": {
+                    "$ref": "#/$defs/ociRepository"
+                  },
+                  "tag": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$"
+                  },
+                  "digest": {
+                    "$ref": "#/$defs/digest"
+                  }
+                }
+              },
+              "user": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "uid",
+                  "gid"
+                ],
+                "properties": {
+                  "uid": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  },
+                  "gid": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 2147483647
+                  }
+                }
+              },
+              "ports": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 65535
+                }
+              },
+              "volumes": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "$ref": "#/$defs/absolutePath"
+                }
+              },
+              "readOnlyRootFilesystem": {
+                "type": "boolean",
+                "default": true
+              },
+              "deviations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "standard",
+                    "reason"
+                  ],
+                  "properties": {
+                    "standard": {
+                      "$ref": "#/$defs/standardId"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "minLength": 10,
+                      "maxLength": 2000
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "charts": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "path"
+            ],
+            "properties": {
+              "name": {
+                "$ref": "#/$defs/slug"
+              },
+              "path": {
+                "$ref": "#/$defs/relativePath"
+              },
+              "images": {
+                "type": "array",
+                "uniqueItems": true,
+                "items": {
+                  "$ref": "#/$defs/slug"
+                }
+              },
+              "deviations": {
+                "description": "Documented deviations from the chart standard (https://github.com/envaro/commonlayer/blob/main/docs/contributing/chart-standard.md, rule ids).",
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "standard",
+                    "reason"
+                  ],
+                  "properties": {
+                    "standard": {
+                      "$ref": "#/$defs/chartStandardId"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "minLength": 10,
+                      "maxLength": 2000
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contact",
+            "policy",
+            "scanners",
+            "gate",
+            "signing"
+          ],
+          "properties": {
+            "contact": {
+              "description": "Address for private vulnerability reports: an e-mail address or an https URL.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "email",
+                  "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+                },
+                {
+                  "$ref": "#/$defs/httpsUrl"
+                }
+              ]
+            },
+            "policy": {
+              "$ref": "#/$defs/relativePath"
+            },
+            "scanners": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "trivy",
+                  "grype"
+                ]
+              }
+            },
+            "gate": {
+              "description": "The build fails on findings at or above this severity that have a fix and no VEX statement.",
+              "enum": [
+                "critical",
+                "high",
+                "medium",
+                "low"
+              ]
+            },
+            "vex": {
+              "$ref": "#/$defs/relativePath"
+            },
+            "signing": {
+              "type": "object",
+              "additionalProperties": false,
+              "minProperties": 1,
+              "maxProperties": 1,
+              "properties": {
+                "keyless": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "issuer",
+                    "identity"
+                  ],
+                  "properties": {
+                    "issuer": {
+                      "$ref": "#/$defs/httpsUrl"
+                    },
+                    "identity": {
+                      "description": "Certificate identity (SAN) of the signing workflow. '*' matches any sequence of characters, e.g. https://github.com/OWNER/REPO/.github/workflows/*@refs/tags/v*.",
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    }
+                  }
+                },
+                "key": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "publicKey"
+                  ],
+                  "properties": {
+                    "publicKey": {
+                      "description": "Path to the PEM-encoded cosign public key in the repository; the platform verifies against the key registered for the project.",
+                      "$ref": "#/$defs/relativePath"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "build": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sbom": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "spdx-json",
+                  "cyclonedx-json"
+                ]
+              }
+            },
+            "provenance": {
+              "enum": [
+                "slsa-v1"
+              ]
+            },
+            "reproducible": {
+              "description": "Never a claim of bit-for-bit reproducibility.",
+              "enum": [
+                "best-effort",
+                "not-attempted"
+              ]
+            },
+            "components": {
+              "description": "Software built from source into the images that SBOM tools cannot identify reliably by themselves. scripts/generate-sbom.sh adds each entry to the SPDX and CycloneDX documents as software contained in the image (or completes the entry the SBOM tool already found under the same name and version), so that vulnerability scanners can match it by CPE.",
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "$ref": "#/$defs/sbomComponent"
+              }
+            }
+          }
+        },
+        "release": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "tagPattern": {
+              "type": "string",
+              "pattern": "\\{version\\}.*\\{revision\\}",
+              "maxLength": 128
+            },
+            "channels": {
+              "description": "Channel name to version line, e.g. {stable: \"1.30\"}.",
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[a-z][a-z0-9-]{0,31}$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "pattern": "^[0-9A-Za-z][0-9A-Za-z.+-]{0,31}$"
+              }
+            }
+          }
+        },
+        "maintenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "sla": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9.-]{0,63}$"
+            },
+            "agreement": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9.-]{0,63}$"
+            }
+          }
+        },
+        "registry": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "source"
+          ],
+          "properties": {
+            "source": {
+              "description": "Repository the CI pushes to and submits from; submissions from any other repository are rejected.",
+              "$ref": "#/$defs/ociRepository"
+            },
+            "destinations": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "images": {
+                  "$ref": "#/$defs/ociRepository"
+                },
+                "charts": {
+                  "type": "string",
+                  "pattern": "^oci://[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:[0-9]+)?(/[a-z0-9]+([._-][a-z0-9]+)*)+$"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "migrationCandidate": {
+      "description": "Entry of the migration catalog (10 section 7). Loaded by `clctl catalog sync` into migration_candidates and served by /api/v1/migration-candidates. Long-form documentation lives next to the manifest in README.md and MIGRATION.md.",
+      "type": "object",
+      "required": [
+        "apiVersion",
+        "kind",
+        "metadata",
+        "upstream",
+        "migration"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "apiVersion": true,
+        "kind": true,
+        "metadata": {
+          "$ref": "#/$defs/metadata"
+        },
+        "upstream": {
+          "$ref": "#/$defs/upstream"
+        },
+        "migration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status",
+            "priority",
+            "priorityEvidence"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "research_needed",
+                "planned",
+                "in_development",
+                "in_review",
+                "available",
+                "blocked",
+                "not_suitable"
+              ]
+            },
+            "priority": {
+              "enum": [
+                "p0",
+                "p1",
+                "p2",
+                "p3"
+              ]
+            },
+            "priorityEvidence": {
+              "description": "Why this priority: sources and reasoning (Markdown).",
+              "$ref": "#/$defs/markdown"
+            },
+            "project": {
+              "description": "Slug of the CommonLayer project that provides the replacement; required when status is available.",
+              "$ref": "#/$defs/slug"
+            },
+            "replaces": {
+              "description": "Legacy artifacts this candidate is an alternative to (maps to legacy_image_refs / legacy_chart_refs).",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "images": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  }
+                },
+                "charts": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  }
+                }
+              }
+            },
+            "licensing": {
+              "description": "Licensing review of the upstream application, including redistribution limits or license changes.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "redistribution",
+                "summary"
+              ],
+              "properties": {
+                "redistribution": {
+                  "enum": [
+                    "permitted",
+                    "restricted",
+                    "not_permitted",
+                    "unclear"
+                  ]
+                },
+                "summary": {
+                  "$ref": "#/$defs/markdown"
+                }
+              }
+            },
+            "relevance": {
+              "description": "Why users need this alternative (maps to relevance_md).",
+              "$ref": "#/$defs/markdown"
+            },
+            "compatibility": {
+              "description": "Compatibility notes (maps to compatibility_md).",
+              "$ref": "#/$defs/markdown"
+            },
+            "proposedImages": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "$ref": "#/$defs/slug"
+                  },
+                  "variant": {
+                    "type": "string",
+                    "pattern": "^([a-z][a-z0-9-]{0,30}[a-z0-9])?$"
+                  },
+                  "notes": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                }
+              }
+            },
+            "proposedChart": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "$ref": "#/$defs/slug"
+                },
+                "notes": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              }
+            },
+            "maintenanceRequirements": {
+              "$ref": "#/$defs/markdown"
+            },
+            "implementationStatus": {
+              "$ref": "#/$defs/markdown"
+            }
+          },
+          "if": {
+            "properties": {
+              "status": {
+                "const": "available"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "required": [
+              "project"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

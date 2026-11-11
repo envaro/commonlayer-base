@@ -1,0 +1,25 @@
+{
+  "@context": "https://openvex.dev/ns/v0.2.0",
+  "@id": "https://commonlayer.org/vex/base/2026-11-10",
+  "author": "CommonLayer base image maintainers",
+  "role": "Project maintainers",
+  "timestamp": "2026-11-10T00:00:00Z",
+  "version": 1,
+  "tooling": "Written by hand; applied by scripts/scan.sh through trivy --vex and grype --vex",
+  "statements": [
+    {
+      "vulnerability": {
+        "name": "CVE-2025-60876",
+        "description": "BusyBox wget request-target injection (CR/LF and control bytes in the request line)."
+      },
+      "products": [
+        { "@id": "pkg:apk/alpine/busybox@1.37.0-r31" },
+        { "@id": "pkg:apk/alpine/busybox-binsh@1.37.0-r31" }
+      ],
+      "status": "not_affected",
+      "justification": "vulnerable_code_not_present",
+      "impact_statement": "The image's BusyBox is rebuilt from Alpine's busybox 1.37.0-r31 source and patches with the wget applet (and every other network client) compiled out; see image/busybox/config-deny.txt in https://github.com/envaro/commonlayer-base. The build fails if a wget applet is present, and scripts/test.sh checks the applet list of the built image. busybox-binsh only provides the /bin/sh link to the same binary.",
+      "timestamp": "2026-11-10T00:00:00Z"
+    }
+  ]
+}

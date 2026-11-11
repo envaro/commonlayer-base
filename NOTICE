@@ -1,0 +1,18 @@
+CommonLayer base image
+Copyright 2026 The CommonLayer contributors
+
+The build configuration in this repository (Dockerfile, scripts, cl-probe source,
+tests) is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The image built from it contains third-party software under its own licenses,
+installed from Alpine Linux packages (https://alpinelinux.org):
+  - musl libc (MIT)
+  - BusyBox (GPL-2.0-only), rebuilt from Alpine's busybox source package
+    (upstream https://busybox.net plus Alpine's patches) with a reduced
+    applet configuration; the corresponding source is identified by the aports
+    commit and checksums in image/Dockerfile and image/busybox/build-busybox.sh
+  - ca-certificates-bundle (MPL-2.0 AND MIT)
+  - tzdata (public domain)
+  - alpine-release, alpine-keys (MIT)
+License texts and SPDX expressions are installed under /usr/share/licenses/ in
+the image; THIRD_PARTY_LICENSES.md is generated from the SBOM for each release.

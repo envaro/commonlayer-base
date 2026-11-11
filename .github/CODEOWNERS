@@ -1,0 +1,7 @@
+# The project's primary and secondary maintainers (the same people as
+# maintainers[] in commonlayer.yaml), as a team of the envaro organization.
+# The team must exist and have write access to this repository.
+*                       @envaro/commonlayer-base-maintainers
+/commonlayer.yaml       @envaro/commonlayer-base-maintainers
+/.github/               @envaro/commonlayer-base-maintainers
+/security/              @envaro/commonlayer-base-maintainers

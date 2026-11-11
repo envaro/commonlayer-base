@@ -1,0 +1,18 @@
+# hadolint configuration shared by every CommonLayer project
+# (byte-identical; the template's drift check verifies this).
+failure-threshold: warning
+ignored:
+  # Build stages install their toolchain from the Alpine release branch the
+  # stage is pinned to by digest; pinning every build-only package version would
+  # break on each Alpine point release without improving the final image, which
+  # contains no package manager and no build tools.
+  - DL3018
+trustedRegistries:
+  - docker.io
+  - registry.commonlayer.org
+  - ghcr.io
+  - localhost
+label-schema:
+  org.opencontainers.image.title: text
+  org.opencontainers.image.version: text
+strict-labels: false

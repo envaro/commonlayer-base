@@ -1,0 +1,17 @@
+# Keeps the pinned action SHAs and Docker base references current. Each update
+# is a pull request that runs validate.yml. Upstream application versions
+# (versions[] in commonlayer.yaml) and the tools in scripts/install-tools.sh are
+# updated by hand with a verified checksum; Dependabot does not cover them.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+  - package-ecosystem: docker
+    directory: /image
+    schedule:
+      interval: weekly

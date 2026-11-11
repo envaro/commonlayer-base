@@ -1,0 +1,61 @@
+# Scheduled and on-demand: rescan the published images of every supported
+# version line with Trivy and Grype (fresh vulnerability databases) and upload
+# SARIF to code scanning. Reports without failing (CL_SCAN_NO_GATE): new
+# findings on released images are tracked, not hidden by a red build.
+name: security-scan
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install pinned tools
+        run: scripts/install-tools.sh yq trivy grype
+      - name: Resolve published digests
+        id: refs
+        run: |
+          src=$(yq '.registry.source' commonlayer.yaml)
+          refs=""
+          for line in $(yq '.versions[] | select(.status != "eol") | .line' commonlayer.yaml); do
+            d=$(docker buildx imagetools inspect "$src:$line" --format '{{json .Manifest}}' | jq -r .digest) || continue
+            refs="$refs $src@$d"
+          done
+          echo "refs=$refs" >> "$GITHUB_OUTPUT"
+      - name: Scan
+        if: ${{ steps.refs.outputs.refs != '' }}
+        env:
+          CL_SCAN_NO_GATE: "1"
+          REFS: ${{ steps.refs.outputs.refs }}
+        run: |
+          # shellcheck disable=SC2086
+          scripts/scan.sh $REFS
+      - name: Upload Trivy SARIF
+        if: ${{ !cancelled() && hashFiles('.build/scan/sarif/trivy/*.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: .build/scan/sarif/trivy
+          category: trivy-published
+      - name: Upload Grype SARIF
+        if: ${{ !cancelled() && hashFiles('.build/scan/sarif/grype/*.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: .build/scan/sarif/grype
+          category: grype-published

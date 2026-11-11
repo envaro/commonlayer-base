@@ -1,0 +1,9 @@
+{
+  "name": "cl-probe",
+  "version": "1.0.0",
+  "supplier": "CommonLayer",
+  "license": "Apache-2.0",
+  "purl": "pkg:generic/commonlayer/cl-probe@1.0.0",
+  "cpes": [],
+  "description": "Health-check probe (http, tcp, file) of the CommonLayer base image, built from image/probe/ of the base image project (https://github.com/envaro/commonlayer-base). No CVE feed exists for it; scanners cannot report vulnerabilities in it."
+}

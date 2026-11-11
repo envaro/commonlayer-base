@@ -1,0 +1,124 @@
+# Pull requests, pushes to main and weekly (a rebuild picks up fixed packages
+# even without a change here): manifest and lint checks, then for each
+# supported version line an amd64 build with the image tests, the scan gate
+# (SARIF uploaded to code scanning) and SBOMs; the chart tests and the kind
+# install/upgrade test run once, in the job of the first line. Also called by
+# release.yml before anything is published. All logic is in scripts/.
+#
+# Base image: the final stage starts from the CommonLayer base pinned by digest
+# (images[].base.digest). While that digest is empty, the image job builds the
+# base project from its repository, named by the repository variable
+# CL_BASE_REPOSITORY (owner/name), and serves it by digest
+# (scripts/base-image.sh). The base project itself needs neither.
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "41 5 * * 1"
+  workflow_call:
+
+permissions: {}
+
+concurrency:
+  group: validate-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: manifest and lint
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned tools
+        run: scripts/install-tools.sh yq hadolint shellcheck kubeconform helm helm-docs
+      - name: Validate
+        run: make validate
+      - id: lines
+        name: Supported version lines
+        run: |
+          echo "lines=$(yq -o=json -I=0 '[.versions[] | select(.status != "eol") | .line]' commonlayer.yaml)" >> "$GITHUB_OUTPUT"
+          echo "first=$(yq '[.versions[] | select(.status != "eol") | .line] | .[0]' commonlayer.yaml)" >> "$GITHUB_OUTPUT"
+    outputs:
+      lines: ${{ steps.lines.outputs.lines }}
+      first: ${{ steps.lines.outputs.first }}
+
+  image:
+    name: build, test, scan ${{ matrix.line }} (linux/amd64)
+    needs: lint
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        line: ${{ fromJSON(needs.lint.outputs.lines) }}
+    env:
+      CL_PLATFORM: linux/amd64
+      CL_VERSIONS: ${{ matrix.line }}
+      CHARTS: ${{ matrix.line == needs.lint.outputs.first }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check out the base project (repository variable CL_BASE_REPOSITORY)
+        if: ${{ vars.CL_BASE_REPOSITORY != '' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ vars.CL_BASE_REPOSITORY }}
+          path: .build/base-project
+          persist-credentials: false
+      - name: Install pinned tools
+        run: scripts/install-tools.sh
+      - name: Base image by digest
+        env:
+          BASE_CHECKOUT: ${{ vars.CL_BASE_REPOSITORY != '' && '.build/base-project' || '' }}
+        run: |
+          ref=$(scripts/base-image.sh ${BASE_CHECKOUT:+--build "$BASE_CHECKOUT"})
+          if [ -n "$ref" ]; then echo "BASE_IMAGE=$ref" >> "$GITHUB_ENV"; fi
+      - name: Build
+        run: make build
+      - name: Test
+        run: make test
+      - name: Scan (gate)
+        run: make scan
+      - name: SBOM and license inventory
+        run: make sbom licenses
+      - name: Chart tests
+        if: ${{ env.CHARTS == 'true' }}
+        run: make chart-test
+      - name: Chart install and upgrade on kind
+        if: ${{ env.CHARTS == 'true' }}
+        run: make chart-test-kind
+      - name: Upload Trivy SARIF
+        if: ${{ !cancelled() && hashFiles('.build/scan/sarif/trivy/*.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: .build/scan/sarif/trivy
+          category: trivy-${{ matrix.line }}
+      - name: Upload Grype SARIF
+        if: ${{ !cancelled() && hashFiles('.build/scan/sarif/grype/*.sarif') != '' }}
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
+        with:
+          sarif_file: .build/scan/sarif/grype
+          category: grype-${{ matrix.line }}
+      - name: Keep reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: reports-amd64-${{ matrix.line }}
+          path: |
+            .build/scan
+            .build/sbom
+            .build/THIRD_PARTY_LICENSES.md
+          if-no-files-found: ignore
+          # The reports live under the hidden .build directory.
+          include-hidden-files: true
+          retention-days: 14

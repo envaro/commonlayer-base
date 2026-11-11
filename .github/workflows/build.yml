@@ -1,0 +1,89 @@
+# Reusable: build every image on a native runner per platform, push by digest
+# to GHCR (registry.source in commonlayer.yaml), then join the digests into one
+# index per image and version line and push its tags. Produces the artifact
+# "release" (.build/release.txt) used by the other release workflows.
+name: build
+
+on:
+  workflow_call:
+    inputs:
+      revision:
+        description: Image revision (the N in v<version>-r<N>)
+        type: string
+        required: true
+
+permissions: {}
+
+jobs:
+  build:
+    name: build ${{ matrix.platform }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      CL_PLATFORM: ${{ matrix.platform }}
+      CL_REVISION: ${{ inputs.revision }}
+      CL_PUSH: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install pinned tools
+        run: scripts/install-tools.sh yq
+      - name: Build and push by digest
+        run: scripts/build.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digests-${{ strategy.job-index }}
+          path: .build/digests/
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: merge platform digests
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      CL_REVISION: ${{ inputs.revision }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: digests-*
+          merge-multiple: true
+          path: .build/digests
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install pinned tools
+        run: scripts/install-tools.sh yq
+      - name: Create indexes and tags
+        run: scripts/build.sh merge
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: .build/release.txt
+          if-no-files-found: error

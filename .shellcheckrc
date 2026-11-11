@@ -1,0 +1,4 @@
+# shellcheck configuration shared by every CommonLayer project (byte-identical;
+# the template's drift check verifies this).
+source-path=SCRIPTDIR
+external-sources=true
