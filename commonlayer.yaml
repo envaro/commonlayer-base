@@ -17,9 +17,9 @@ upstream:
   license: MIT AND GPL-2.0-only AND MPL-2.0
 maintainers:
   # Placeholders until maintainers are appointed through the platform.
-  - username: commonlayer-base-primary
+  - username: bheitmann
     role: primary
-  - username: commonlayer-base-secondary
+  - username: admin
     role: secondary
 versions:
   - line: "3.24"
